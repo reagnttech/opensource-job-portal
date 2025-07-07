@@ -18,8 +18,11 @@ google-api-python-client==2.171.0
 prospector==1.17.1
 psycopg-binary==3.2.9
 psycopg2-binary==2.9.10
+pytz==2024.2
+python-dateutil==2.9.0
 python-dotenv==1.1.0
 python-memcached==1.62
+requests==2.31.0
 redis==6.2.0
 sorl-thumbnail==12.11.0
 dj-rest-auth==7.0.1
