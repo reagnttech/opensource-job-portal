@@ -1,4 +1,5 @@
 import os
+import dj_database_url
 
 from celery.schedules import crontab
 from corsheaders.defaults import default_headers, default_methods
@@ -8,7 +9,7 @@ load_dotenv()
 
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 
-DEBUG = os.getenv("DEBUG", True)
+DEBUG = os.getenv("DEBUG", "True").lower() in ("true", "1", "yes", "on")
 TEMPLATE_DEBUG = DEBUG
 
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "peeljobs@micropyramid.com")
@@ -16,8 +17,16 @@ DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "peeljobs@micropyramid.com"
 
 PEEL_URL = os.getenv("PEEL_URL", "http://peeljobs.com/")
 
-CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/1")
-CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND")
+# Celery configuration with REDIS_URL support
+REDIS_URL = os.getenv("REDIS_URL")
+if REDIS_URL:
+    # Use REDIS_URL if available (for platforms like Render, Heroku, etc.)
+    CELERY_BROKER_URL = REDIS_URL
+    CELERY_RESULT_BACKEND = REDIS_URL
+else:
+    # Fallback to CELERY_BROKER_URL or default for local development
+    CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/1")
+    CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND")
 CELERY_IMPORTS = ("dashboard.tasks")
 
 
@@ -73,16 +82,26 @@ ADMINS = (
 
 MANAGERS = ADMINS
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.getenv("DB_NAME"),
-        "USER": os.getenv("DB_USER"),
-        "PASSWORD": os.getenv("DB_PASSWORD"),
-        "HOST": os.getenv("DB_HOST"),
-        "PORT": os.getenv("DB_PORT"),
+# Database configuration with DATABASE_URL support
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if DATABASE_URL:
+    # Use DATABASE_URL if available (for platforms like Render, Heroku, etc.)
+    DATABASES = {
+        "default": dj_database_url.parse(DATABASE_URL)
     }
-}
+else:
+    # Fallback to individual environment variables for local development
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.getenv("DB_NAME"),
+            "USER": os.getenv("DB_USER"),
+            "PASSWORD": os.getenv("DB_PASSWORD"),
+            "HOST": os.getenv("DB_HOST"),
+            "PORT": os.getenv("DB_PORT"),
+        }
+    }
 
 
 TIME_ZONE = "Asia/Kolkata"
@@ -367,14 +386,25 @@ THUMBNAIL_FORCE_OVERWRITE = True
 #     }
 # }
 
-# Alternative Redis cache configuration (if you prefer Redis over Memcached)
-# CACHES = {
-#     "default": {
-#         "BACKEND": "django.core.cache.backends.redis.RedisCache",
-#         "LOCATION": "redis://127.0.0.1:6379/1",
-#         "TIMEOUT": 48 * 60 * 60,
-#     }
-# }
+# Cache configuration with Redis support
+if REDIS_URL:
+    # Use Redis cache with REDIS_URL (for production)
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": REDIS_URL,
+            "TIMEOUT": 48 * 60 * 60,
+        }
+    }
+else:
+    # Use local memory cache for development (if no Redis)
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "unique-snowflake",
+            "TIMEOUT": 48 * 60 * 60,
+        }
+    }
 
 FB_ACCESS_TOKEN = os.getenv("FBACCESSTOKEN")
 FB_PAGE_ACCESS_TOKEN = os.getenv("FBPAGEACCESSTOKEN")
@@ -416,9 +446,10 @@ CELERY_MONITOR_URL = os.getenv("CELERY_MONITOR_URL")
 # Tailwind CSS Configuration
 TAILWIND_CSS_FILE = "css/tailwind-output.css"
 
-# Try to load local settings for development
-try:
-    from .settings_local import *
-    print("Local development settings loaded")
-except ImportError:
-    pass  # settings_local.py doesn't exist or has import errors
+# Try to load local settings for development only
+if DEBUG and not DATABASE_URL:  # Only load local settings in debug mode and when not using DATABASE_URL
+    try:
+        from .settings_local import *
+        print("Local development settings loaded")
+    except ImportError:
+        pass  # settings_local.py doesn't exist or has import errors

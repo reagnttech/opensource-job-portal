@@ -3,7 +3,18 @@ import sentry_sdk
 # from sentry_sdk.integrations.django import DjangoIntegration
 # from sentry_sdk.integrations.celery import CeleryIntegration
 
+# Force production settings
 DEBUG = False
+
+# Ensure Render's allowed host is included
+ALLOWED_HOSTS = [
+    "peeljobs.com", 
+    "test.peeljobs.com", 
+    "localhost", 
+    "127.0.0.1", 
+    "opensource-job-portal-1.onrender.com",
+    ".onrender.com"  # Allow all Render subdomains
+]
 
 CELERY_IMPORTS = ("dashboard.tasks")
 
