@@ -316,13 +316,14 @@ urlpatterns = [
 handler404 = custom_404
 handler500 = custom_500
 
-# Include local development URLs if available
-try:
-    from .urls_local import local_urlpatterns
-    urlpatterns += local_urlpatterns
-    print("Local development URLs loaded")
-except ImportError:
-    pass  # urls_local.py doesn't exist or has import errors
+# Include local development URLs only in debug mode
+if settings.DEBUG:
+    try:
+        from .urls_local import local_urlpatterns
+        urlpatterns += local_urlpatterns
+        print("Local development URLs loaded")
+    except ImportError:
+        pass  # urls_local.py doesn't exist or has import errors
 
 # if settings.DEBUG is False:   # if DEBUG is True it will be served automatically
 #     urlpatterns += [

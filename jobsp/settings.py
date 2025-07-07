@@ -253,13 +253,25 @@ STATICFILES_DIRS = (os.path.join(BASE_DIR, "static"),)
 #     },
 # }
 
-HAYSTACK_CONNECTIONS = {
-    "default": {
-        "ENGINE": "haystack.backends.elasticsearch7_backend.Elasticsearch7SearchEngine",
-        "URL": "http://127.0.0.1:9200/",
-        "INDEX_NAME": "haystack",
-    },
-}
+# Elasticsearch configuration with environment variable support
+ELASTICSEARCH_URL = os.getenv("ELASTICSEARCH_URL", "http://127.0.0.1:9200/")
+
+if os.getenv("ELASTICSEARCH_URL") or DEBUG:
+    # Use Elasticsearch when URL is provided or in development
+    HAYSTACK_CONNECTIONS = {
+        "default": {
+            "ENGINE": "haystack.backends.elasticsearch7_backend.Elasticsearch7SearchEngine",
+            "URL": ELASTICSEARCH_URL,
+            "INDEX_NAME": "haystack",
+        },
+    }
+else:
+    # Use simple backend for production when Elasticsearch is not available
+    HAYSTACK_CONNECTIONS = {
+        "default": {
+            "ENGINE": "haystack.backends.simple_backend.SimpleEngine",
+        },
+    }
 
 
 HAYSTACK_SIGNAL_PROCESSOR = "haystack.signals.RealtimeSignalProcessor"

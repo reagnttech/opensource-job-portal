@@ -79,30 +79,49 @@ LOGGING = {
 GIT_BRANCH = "master"
 UWSGI_FILE_NAME = "jobs_uwsgi.ini"
 
+# AWS S3 Configuration (only use if AWS credentials are provided)
 AWS_STORAGE_BUCKET_NAME = AWS_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME")
-AWS_DEFAULT_ACL = "public-read"
-S3_DOMAIN = AWS_S3_CUSTOM_DOMAIN = str(AWS_BUCKET_NAME) + ".s3.amazonaws.com"
 
-LOGO = "https://%s/logo.png" % (S3_DOMAIN)
+if AWS_STORAGE_BUCKET_NAME and os.getenv("AWS_ACCESS_KEY_ID") and os.getenv("AWS_SECRET_ACCESS_KEY"):
+    # Use S3 storage when AWS credentials are properly configured
+    AWS_DEFAULT_ACL = "public-read"
+    S3_DOMAIN = AWS_S3_CUSTOM_DOMAIN = str(AWS_BUCKET_NAME) + ".s3.amazonaws.com"
 
-DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
-DEFAULT_S3_PATH = "media"
-STATICFILES_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
-STATIC_S3_PATH = "static"
-COMPRESS_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
+    LOGO = "https://%s/logo.png" % (S3_DOMAIN)
 
-AWS_HEADERS = {
-    "Expires": "Sun, 15 June 2020 20:00:00 GMT",
-    "Cache-Control": "max-age=16400000",
-    "public-read": True,
-}
+    DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
+    DEFAULT_S3_PATH = "media"
+    STATICFILES_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
+    STATIC_S3_PATH = "static"
+    COMPRESS_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
 
-AWS_IS_GZIPPED = True
-AWS_ENABLED = True
-AWS_S3_SECURE_URLS = True
+    AWS_HEADERS = {
+        "Expires": "Sun, 15 June 2020 20:00:00 GMT",
+        "Cache-Control": "max-age=16400000",
+        "public-read": True,
+    }
 
-MEDIA_ROOT = "/%s/" % DEFAULT_S3_PATH
-MEDIA_URL = "//%s/%s/" % (S3_DOMAIN, DEFAULT_S3_PATH)
-STATIC_ROOT = "/%s/" % STATIC_S3_PATH
-STATIC_URL = "https://%s/" % (S3_DOMAIN)
-COMPRESS_URL = STATIC_URL
+    AWS_IS_GZIPPED = True
+    AWS_ENABLED = True
+    AWS_S3_SECURE_URLS = True
+
+    MEDIA_ROOT = "/%s/" % DEFAULT_S3_PATH
+    MEDIA_URL = "//%s/%s/" % (S3_DOMAIN, DEFAULT_S3_PATH)
+    STATIC_ROOT = "/%s/" % STATIC_S3_PATH
+    STATIC_URL = "https://%s/" % (S3_DOMAIN)
+    COMPRESS_URL = STATIC_URL
+else:
+    # Fallback to local static files (suitable for platforms like Render)
+    import os
+    BASE_DIR = os.path.dirname(os.path.dirname(__file__))
+    
+    STATIC_ROOT = os.path.join(BASE_DIR, "staticfiles")
+    STATIC_URL = "/static/"
+    MEDIA_ROOT = os.path.join(BASE_DIR, "media")
+    MEDIA_URL = "/media/"
+    
+    # Use default storage backends
+    DEFAULT_FILE_STORAGE = "django.core.files.storage.FileSystemStorage"
+    STATICFILES_STORAGE = "django.contrib.staticfiles.storage.StaticFilesStorage"
+    
+    LOGO = STATIC_URL + "logo.png"

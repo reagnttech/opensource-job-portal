@@ -6,6 +6,9 @@
 ✅ **Redis Configuration**: Uses `REDIS_URL` for caching and Celery  
 ✅ **WSGI Configuration**: Proper initialization order  
 ✅ **Build Process**: Separate build script for migrations  
+✅ **Static Files**: Conditional S3/local storage based on AWS credentials  
+✅ **Elasticsearch**: Optional configuration with fallback to simple backend  
+✅ **Local URLs**: Only loaded in debug mode (no more production warnings)  
 
 ## Render Configuration
 
