@@ -5,7 +5,7 @@ import os
 from datetime import datetime
 import re
 import arrow
-from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, UserManager
+from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, UserManager as BaseUserManager
 
 # from oauth2client.contrib.django_util.models import CredentialsField
 
@@ -308,61 +308,53 @@ class Company(models.Model):
         return Menu.objects.filter(company=self)
 
     def get_active_company_menu(self):
-        return Menu.objects.filter(company=self, status=True).order_by("id")
+        return Menu.objects.filter(company=self, status=True)
 
     def get_live_jobposts(self):
-        return JobPost.objects.filter(user__company=self, status="Live")
+        return JobPost.objects.filter(company=self, status="Live")
 
     def get_unique_recruiters(self):
-        job_posts = list(
-            set(
-                list(
-                    JobPost.objects.filter(company=self, status="Live").values_list(
-                        "user", flat=True
-                    )
-                )
-            )
+        return User.objects.filter(
+            company=self,
+            id__in=JobPost.objects.filter(company=self).values_list("user_id"),
         )
-        users = User.objects.filter(id__in=job_posts)
-        return users
+
+    def get_active_jobposts(self):
+        return JobPost.objects.filter(company=self, status="Live")
+
+    def get_closed_jobs_count(self):
+        return JobPost.objects.filter(company=self, status="Disabled").count()
 
     def get_absolute_url(self):
+        # return reverse('company_jobs', kwargs={'company_name': self.slug})
         return "/" + str(self.slug) + "-job-openings/"
 
     def get_logo_url(self):
         if self.profile_pic:
-            return str(self.profile_pic)
-        return "https://cdn.peeljobs.com/static/company_logo.png"
+            return str(self.profile_pic.url)
+        else:
+            return ""
 
     def get_description(self):
-        from bs4 import BeautifulSoup
-
-        html = self.profile
-        # create a new bs4 object from the html data loaded
-        soup = BeautifulSoup(html)
-        # remove all javascript and stylesheet code
-        for script in soup(["script", "style"]):
-            script.extract()
-        # get text
-        text = soup.get_text()
-        # break into lines and remove leading and trailing space on each
-        lines = (line.strip() for line in text.splitlines())
-        # break multi-headlines into a line each
-        chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
-        # drop blank lines
-        text = "\n<br>".join(chunk for chunk in chunks if chunk)
-        return text
+        chars = len(self.profile) if self.profile else 0
+        description = ""
+        if chars > 300:
+            description = self.profile[0:300]
+        else:
+            description = self.profile
+        return description
 
     def get_website(self):
-        site = self.website
-        if site is not None and "//" in site:
-            site = site.split("//")[1]
-        return site
+        if str(self.website).find("http://") == -1:
+            return "http://" + str(self.website)
+        else:
+            return str(self.website)
 
     def get_logo_url(self):
         if self.profile_pic:
-            return str(self.profile_pic)
-        return "https://cdn.peeljobs.com/static/company_logo.png"
+            return str(self.profile_pic.url)
+        else:
+            return ""
 
 
 class EducationInstitue(models.Model):
@@ -406,10 +398,13 @@ class Project(models.Model):
     size = models.IntegerField(null=True, blank=True)
 
 
+YEARS = [(i, i) for i in range(0, 50)]
+MONTHS = [(i, i) for i in range(0, 12)]
+
+
 TechnicalSkill_STATUS = (
-    ("Poor", "Poor"),
-    ("Average", "Average"),
-    ("Good", "Good"),
+    ("Beginner", "Beginner"),
+    ("Intermediate", "Intermediate"),
     ("Expert", "Expert"),
 )
 
@@ -485,6 +480,41 @@ def resume_upload_path(instance, filename):
     
     # Return the full path
     return f"resume/user_{instance.id}/{year}/{month}/{new_filename}"
+
+
+class CustomUserManager(BaseUserManager):
+    """
+    Custom user manager for proper superuser creation with staff privileges.
+    """
+    def create_user(self, email, username, password=None, **extra_fields):
+        """Create and save a regular User with the given email and password."""
+        if not email:
+            raise ValueError('The Email field must be set')
+        if not username:
+            raise ValueError('The Username field must be set')
+        
+        email = self.normalize_email(email)
+        extra_fields.setdefault('is_active', True)
+        extra_fields.setdefault('is_staff', False)
+        extra_fields.setdefault('is_superuser', False)
+        
+        user = self.model(email=email, username=username, **extra_fields)
+        user.set_password(password)
+        user.save(using=self._db)
+        return user
+
+    def create_superuser(self, email, username, password=None, **extra_fields):
+        """Create and save a SuperUser with the given email and password."""
+        extra_fields.setdefault('is_staff', True)
+        extra_fields.setdefault('is_superuser', True)
+        extra_fields.setdefault('is_active', True)
+
+        if extra_fields.get('is_staff') is not True:
+            raise ValueError('Superuser must have is_staff=True.')
+        if extra_fields.get('is_superuser') is not True:
+            raise ValueError('Superuser must have is_superuser=True.')
+
+        return self.create_user(email, username, password, **extra_fields)
 
 
 class User(AbstractBaseUser, PermissionsMixin):
@@ -594,7 +624,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = ["username"]
 
-    objects = UserManager()
+    objects = CustomUserManager()
 
     def has_perm(self, perm, obj=None):
         if self.is_active and self.is_staff:
