@@ -17,12 +17,28 @@ DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "peeljobs@micropyramid.com"
 
 PEEL_URL = os.getenv("PEEL_URL", "http://peeljobs.com/")
 
-# Celery configuration with REDIS_URL support
+# Celery configuration with REDIS_URL support and fallback
 REDIS_URL = os.getenv("REDIS_URL")
 if REDIS_URL:
-    # Use REDIS_URL if available (for platforms like Render, Heroku, etc.)
-    CELERY_BROKER_URL = REDIS_URL
-    CELERY_RESULT_BACKEND = REDIS_URL
+    try:
+        # Test Redis connection for Celery
+        import redis
+        client = redis.from_url(REDIS_URL)
+        client.ping()  # Test connection
+        
+        # Use REDIS_URL if available (for platforms like Render, Heroku, etc.)
+        CELERY_BROKER_URL = REDIS_URL
+        CELERY_RESULT_BACKEND = REDIS_URL
+        print(f"✅ Celery Redis broker configured successfully")
+    except Exception as e:
+        print(f"⚠️ Celery Redis connection failed ({e}), using local fallback")
+        # Fallback to local Redis or disable Celery in production
+        CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/1")
+        CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND")
+        # In production without Redis, we can use database backend
+        if not DEBUG:
+            CELERY_TASK_ALWAYS_EAGER = True  # Execute tasks synchronously
+            CELERY_TASK_EAGER_PROPAGATES = True
 else:
     # Fallback to CELERY_BROKER_URL or default for local development
     CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/1")
@@ -398,16 +414,40 @@ THUMBNAIL_FORCE_OVERWRITE = True
 #     }
 # }
 
-# Cache configuration with Redis support
+# Cache configuration with Redis support and fallback
 if REDIS_URL:
-    # Use Redis cache with REDIS_URL (for production)
-    CACHES = {
-        "default": {
-            "BACKEND": "django.core.cache.backends.redis.RedisCache",
-            "LOCATION": REDIS_URL,
-            "TIMEOUT": 48 * 60 * 60,
+    try:
+        # Test Redis connection before using it
+        import redis
+        client = redis.from_url(REDIS_URL)
+        client.ping()  # Test connection
+        
+        # Use Redis cache with REDIS_URL (for production)
+        CACHES = {
+            "default": {
+                "BACKEND": "django.core.cache.backends.redis.RedisCache",
+                "LOCATION": REDIS_URL,
+                "TIMEOUT": 48 * 60 * 60,
+                "OPTIONS": {
+                    "CONNECTION_POOL_KWARGS": {
+                        "retry_on_timeout": True,
+                        "socket_keepalive": True,
+                        "socket_keepalive_options": {},
+                    }
+                }
+            }
         }
-    }
+        print(f"✅ Redis cache configured successfully")
+    except Exception as e:
+        print(f"⚠️ Redis connection failed ({e}), falling back to local memory cache")
+        # Fallback to local memory cache if Redis fails
+        CACHES = {
+            "default": {
+                "BACKEND": "django.core.cache.backends.locmem.LocMemCache", 
+                "LOCATION": "unique-snowflake",
+                "TIMEOUT": 48 * 60 * 60,
+            }
+        }
 else:
     # Use local memory cache for development (if no Redis)
     CACHES = {

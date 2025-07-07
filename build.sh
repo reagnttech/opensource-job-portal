@@ -7,6 +7,9 @@ echo "🔧 Installing dependencies..."
 pip install --upgrade pip
 pip install -r requirements.txt
 
+echo "🔍 Testing Redis connection..."
+python test_redis.py || echo "⚠️ Redis test failed, will use fallback cache"
+
 echo "🗄️ Running database migrations..."
 python manage_server.py migrate
 

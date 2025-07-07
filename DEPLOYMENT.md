@@ -18,11 +18,16 @@ Set these in your Render service dashboard:
 
 ```env
 DATABASE_URL=postgresql://peeljobs_db_user:34@dpg-432-a.oregon-postgres.render.com/c4432xd2
-REDIS_URL=redis://default:432432@grand-dd-432432d.upstash.io:6379
+REDIS_URL=rediss://default:432432@grand-dd-432432d.upstash.io:6379
 DEBUG=False
 SECRET_KEY=your-production-secret-key-here
 ALLOWED_HOSTS=opensource-job-portal-1.onrender.com,.onrender.com
 ```
+
+**⚠️ Important Redis URL Notes:**
+- For Upstash Redis, use `rediss://` (with SSL) instead of `redis://`
+- Ensure your Redis service allows connections from Render's IP ranges
+- Test Redis connection: `python test_redis.py`
 
 ### Build Configuration
 
@@ -144,5 +149,44 @@ gunicorn jobsp.wsgi:application
    - `SECRET_KEY` (generate a new one)
 
 3. **Deploy**: Push your changes and trigger a new deployment
+
+## Troubleshooting
+
+### Redis Connection Issues
+
+**If you see "Connection closed by server" errors:**
+
+1. **Check Redis URL format:**
+   ```bash
+   # For Upstash Redis, use SSL:
+   REDIS_URL=rediss://default:password@host:6379
+   
+   # Not:
+   REDIS_URL=redis://default:password@host:6379
+   ```
+
+2. **Test Redis connection:**
+   ```bash
+   python test_redis.py
+   ```
+
+3. **Verify Redis service:**
+   - Check if your Redis service is running
+   - Ensure it allows external connections
+   - Verify username/password credentials
+
+4. **Fallback behavior:**
+   - App automatically falls back to local memory cache if Redis fails
+   - Celery tasks run synchronously without Redis
+
+### Build Issues
+
+**If static files fail to collect:**
+- Ensure AWS credentials are set (if using S3)
+- Or the app will use local static files storage
+
+**If migrations fail:**
+- Check DATABASE_URL format
+- Ensure database is accessible from Render
 
 The database connection errors should be resolved! 🎉 
